@@ -1,118 +1,69 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
 import React from 'react';
-import type {PropsWithChildren} from 'react';
-import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
-
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
-
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
-
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
+import { Alert, Text, ToastAndroid, View } from 'react-native';
+import { useCameraDevice, useCameraFormat, useCameraPermission } from 'react-native-vision-camera';
+import RecordingControllerButtons from './src/components/recording-controller-buttons';
+import CameraView from './src/components/camera-view';
+import { getVideoSize } from './src/utils/commonUtils';
+import ResolutionOptionsDialog from './src/components/resolution-options-dialog';
 
 function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+  const camera = React.useRef<any>()
+  const [videoRecordingStarted, setVideoRecordingStarted] = React.useState(false)
+  const [currentResolution, setCurrentResolution] = React.useState<string>("720p")
+  const [modalVisible, setModalVisible] = React.useState(false)
+  const { hasPermission, requestPermission } = useCameraPermission()
+    if (!hasPermission) {
+        requestPermission()
+    }
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-  };
 
+  const handleRecordVideo = async () => {
+    try {
+      await camera?.current?.startRecording({
+        onRecordingFinished: async (video: any) => {
+          const videoSize = await getVideoSize(video?.path);
+          Alert.alert("Video Details", `Video Size: ${Math.ceil(Number(videoSize?.megabytes))} MB`)
+        },
+        onRecordingError: (error: any) => console.log("error:", error)
+      })
+      setVideoRecordingStarted(true)
+    } catch (e) {
+      console.log("error:", e)
+    }
+  }
+
+  const handleStopVideo = async () => {
+    try {
+      await camera?.current?.stopRecording()
+      setVideoRecordingStarted(false)
+      ToastAndroid.show("Recording Stopped", ToastAndroid.SHORT)
+    } catch (e) {
+      console.log("error:", e)
+    }
+  }
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
+    <View style={{ flex: 1, alignItems: 'center', paddingBottom:20 }}>
+      <RecordingControllerButtons
+        onStartPress={()=>setModalVisible(true)}
+        onStopPress={handleStopVideo}
       />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
+      <CameraView
+        cameraRef={camera}
+        currentRes={currentResolution}
+        recordingStarted={videoRecordingStarted}
+      />
+      <ResolutionOptionsDialog
+        modalVisible={modalVisible}
+        onResPress={(res) => {
+          handleRecordVideo()
+          setCurrentResolution(res)
+          setModalVisible(false)
+          ToastAndroid.show(res + " Recording Started", ToastAndroid.SHORT)
+        }}
+      />
+      {videoRecordingStarted && <Text>Recording....</Text>}
+    </View>
+  )
 }
-
-const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
-  },
-});
 
 export default App;
